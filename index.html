@@ -91,8 +91,8 @@
     font-size: var(--label-size, 16px);
     line-height: 1.4;
     letter-spacing: 0.02em;
-    margin: 0 0 0.9em;
-    padding-bottom: 0.6em;
+    margin: 0 0 0.5em;
+    padding-bottom: 0.35em;
     border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
     font-weight: 400; font-style: normal;
   }
@@ -144,7 +144,7 @@
   }
   /* Reach zone: keeps the panel between roughly 2 ft and 6.5 ft off the floor on an ~8 ft wall,
      so it sits inside the band people can comfortably touch. */
-  .panel-reach #panel { top: 24%; bottom: 20%; border: 1px solid var(--line); border-radius: 8px; }
+  .panel-reach #panel { top: 18%; bottom: 22%; border: 1px solid var(--line); border-radius: 8px; }
   #panel header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   #panel h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
   #panel h1 span { color: var(--beam); }
@@ -320,8 +320,7 @@
     <legend>Text</legend>
     <div class="row"><label for="sample">Sample</label>
       <select id="sample">
-        <option value="swamp">Sample 1</option>
-        <option value="flamingo">Sample 2</option>
+        <option value="swamp">Sample text</option>
         <option value="custom0">Your own text</option>
       </select>
     </div>
@@ -369,8 +368,8 @@
       <div><label for="wallH">Canvas height (px)</label><input type="number" id="wallH" min="200" max="8000" step="1"></div>
     </div>
     <div class="row"><label for="wallFt">Image height</label>
-      <div class="rangewrap"><input type="number" id="wallFt" min="1" max="100" step="0.5"><span class="unit">ft</span></div></div>
-    <p class="hint">Measure the projected image from its bottom edge to its top edge, in feet. Labels use it to estimate physical cap height and a rough reading distance (≈1 in of cap height per 10 ft).</p>
+      <div class="rangewrap"><input type="number" id="wallFt" min="1" max="100" step="0.1"><span class="unit">ft</span></div></div>
+    <p class="hint">Measure the projected image from its bottom edge to its top edge, in feet (DEC studio, measured Sept 2026: about 4 in to 87 in off the floor, so 6.9 ft). Labels use it to estimate physical cap height and a rough reading distance (≈1 in of cap height per 10 ft).</p>
     <div class="row"><label>Preview</label>
       <div class="seg" role="group" aria-label="Preview scale"><button type="button" id="viewFit">Fit to screen</button><button type="button" id="viewActual">Actual px</button></div></div>
     <div class="row"><label for="seamPos">Corners (px)</label><input type="text" id="seamPos" placeholder="e.g. 4096, 8193"></div>
@@ -405,6 +404,7 @@
   </div>
 </aside>
 
+<script src="samples.js"></script>
 <script>
 (() => {
   // ---------- Mode: the wall ("display") or a phone/tablet ("remote", opened with ?remote=CODE) ----------
@@ -484,20 +484,23 @@
   };
   const isStr = k => k === "font" || k === "scheme";
 
-  const SAMPLES = {
+  // Sample text lives in samples.js (next to this page) so it can be edited without touching the code.
+  // If that file is missing or empty, this built-in placeholder is used.
+  const BUILTIN_SAMPLE = {
     swamp: [
-      "On the afternoon of September 20th, dishwater-gray and rain, a man named Dale Figgo picked up a hitchhiker on Gus Grissom Boulevard in Tangelo Shores, Florida. The hitchhiker, who reminded Figgo of Danny Devito, asked for a lift to the nearest interstate. Figgo agreed to take him there after finishing an errand.",
-      "The distance to the highway wasn’t far, and the hitchhiker would have walked if not for the pounding thunder and wild lightning. As a boy he had witnessed a neighbor’s gelded llama struck to the ground by a bolt that lit up the small Wisconsin pasture like Lambeau Field. The llama had survived the shock, but from then on yipped day and night like an addled collie. The hitchhiker shared this anecdote with Dale Figgo, who agreed that lightning was a thing to be avoided.",
-
+      "The iguana fell out of the royal palm at 7:14 on a Tuesday morning, which was the first thing that went wrong for Duane Pettibone and by no means the last. It landed on the windshield of his rented Chrysler with a sound like a dropped casserole, regarded him through the glass with prehistoric contempt, and then slid off the hood and waddled toward the Publix.",
+      "Duane was in Florida to sell a man a swamp. Not metaphorically. The swamp was eleven hundred acres of sawgrass and cottonmouths west of Immokalee, and the man was a retired orthodontist from Ohio who believed, with the serene conviction of the recently sunburned, that it would make a fine golf course. Duane did not intend to correct him. Duane intended to be in Costa Rica by Labor Day.",
+      "Nobody had mentioned the woman who lived in the middle of the swamp, or her airboat, or her shotgun, or the fact that she had once served two terms in the state senate and still had the governor's cell number.",
     ],
-    flamingo: [
-      "Tommy Varga found the first flamingo at 5:40 in the morning, standing on one leg in the fountain outside the Coral Gables courthouse, wearing a tiny orange life vest and an expression of profound regret. By noon there were eleven of them. By the time the county commission convened an emergency session on the matter, there were forty, and the life vests had been traced to a boat-rental outfit in Islamorada that went bankrupt in 1998.",
-      "Varga was a county code inspector who had once written up a Hialeah man for keeping a tapir in his carport, and he was assigned the flamingos because nobody else answered the phone. He did not know much about flamingos. He knew even less about the woman in the golf cart who had been following him since breakfast, taking notes on a legal pad and muttering the word \u201crestitution.\u201d",
-    ],
+  }.swamp;
+  const SAMPLES = {
+    swamp: (Array.isArray(window.SAMPLE_TEXT) && window.SAMPLE_TEXT.filter(p => typeof p === "string" && p.trim()).length)
+      ? window.SAMPLE_TEXT.filter(p => typeof p === "string" && p.trim())
+      : BUILTIN_SAMPLE,
   };
 
   const DEFAULTS = {
-    sample: "swamp", paras: 1, customs: ["", "", ""],
+    sample: "swamp", paras: 99, customs: ["", "", ""],
     colsVar: "font", rowsVar: "none",
     axis: {
       font: ["times", "georgia", "garamond", "merriweather", "sourceserif", "arial", "calibri", "helvetica", "roboto", "atkinson"],
@@ -508,24 +511,33 @@
       tracking: [0, 0.02, 0.05],
     },
     base: { font: "atkinson", size: 40, scheme: "wb", weight: 400, lh: 1.4, tracking: 0 },
-    measure: 50, gap: 48, blockPad: 36, wallPad: 40, wallBg: "#000000",
-    labels: true, labelSize: 18,
-    wallW: 12289, wallH: 1080, wallFt: 7.5,
-    view: "fit", seams: false, seamPos: "4096, 8193", corners: true, safeTop: 100, side: "leftwall", panelH: "reach", wallPanel: false, wallCode: true,
+    measure: 60, gap: 12, blockPad: 18, wallPad: 16, wallBg: "#000000",
+    labels: true, labelSize: 15,
+    wallW: 12289, wallH: 1080, wallFt: 6.9,
+    view: "fit", seams: false, seamPos: "4096, 8193", corners: true, safeTop: 30, side: "leftwall", panelH: "reach", wallPanel: false, wallCode: true,
   };
 
-  const KEY = "font-tester-v5";
+  const KEY = "font-tester-v6";
   const clone = o => JSON.parse(JSON.stringify(o));
   let S = null;
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   if (!S || typeof S !== "object") {
-    // carry over settings from the previous version, including any pasted text
+    try {
+      const old = JSON.parse(localStorage.getItem("font-tester-v5"));
+      if (old && typeof old === "object") {
+        S = old;
+        for (const k of ["gap", "blockPad", "wallPad", "labelSize", "safeTop", "wallFt", "measure", "paras"]) delete S[k];
+      }
+    } catch (e) {}
+  }
+  if (!S || typeof S !== "object") {
+    // carry over settings from older versions, including any pasted text
     try { S = JSON.parse(localStorage.getItem("wall-type-tester-v4")) || JSON.parse(localStorage.getItem("wall-type-tester-v3")); } catch (e) {}
     if (!S || typeof S !== "object") S = {};
     if (typeof S.custom === "string") { S.customs = [S.custom, "", ""]; delete S.custom; }
   }
   if (!Array.isArray(S.customs) || S.customs.length !== 3) S.customs = ["", "", ""];
-  if (!/^(swamp|flamingo|custom0)$/.test(S.sample || "")) S.sample = S.sample === "custom" ? "custom0" : "swamp";
+  if (!/^(swamp|custom0)$/.test(S.sample || "")) S.sample = S.sample === "custom" ? "custom0" : "swamp";
   if (!/^(leftwall|centerwall|rightwall)$/.test(S.side || "")) S.side = "leftwall";
   S = Object.assign(clone(DEFAULTS), S);
   S.axis = Object.assign(clone(DEFAULTS.axis), S.axis || {});
