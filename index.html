@@ -1,0 +1,1044 @@
+<meta charset="utf-8">
+<title>Font Tester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- One link per family so a single bad request can't take down the rest. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gelasio:wght@400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caladea:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400..800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  /* Single dark theme on purpose: this runs in a projection room, where a bright UI spills light onto the wall. */
+  :root {
+    color-scheme: dark;
+    --ground: #07080a;
+    --panel: #15181d;
+    --panel-2: #1c2027;
+    --line: #2b313a;
+    --ink: #e7e9ec;
+    --muted: #8e96a3;
+    --beam: #f2b84b;       /* projector-lamp amber */
+    --beam-ink: #1a1307;
+    --warn: #ff8a7a;
+    --ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--ui);
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  /* ---------- Viewport + stage (the wall at its real pixel size) ---------- */
+  #viewport { position: fixed; inset: 0; overflow: auto; }
+  #sizer { position: relative; margin: 0 auto; }
+  .fit #sizer { top: 50%; transform: translateY(-50%); }
+  #stage {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    background: var(--wall-bg, #000);
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  .wallseg {
+    position: absolute; top: 0; bottom: 0;
+    box-sizing: border-box;
+    padding: var(--wall-pad, 40px);
+    padding-top: max(var(--wall-pad, 40px), var(--safe-top, 0px));
+  }
+  .fit #stage { outline: 1px solid var(--line); }
+  .grid {
+    display: grid;
+    gap: var(--gap, 40px);
+    height: 100%;
+  }
+  .block {
+    box-sizing: border-box;
+    padding: var(--block-pad, 32px);
+    min-width: 0; min-height: 0;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .block .lbl {
+    flex: none;
+    font-family: var(--mono);
+    font-size: var(--label-size, 16px);
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    margin: 0 0 0.9em;
+    padding-bottom: 0.6em;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    font-weight: 400; font-style: normal;
+  }
+  .block .lbl .dim { opacity: 0.62; }
+  .block .lbl b { font-weight: 500; }
+  .block .lbl .flag { color: var(--warn); opacity: 1; }
+  .block .lbl .tag {
+    display: inline-block; font-size: 0.8em; letter-spacing: 0.08em; text-transform: uppercase;
+    border: 1px solid color-mix(in srgb, currentColor 40%, transparent); border-radius: 3px; padding: 0 0.4em; margin-left: 0.4em; opacity: 0.8;
+  }
+  .hide-labels .block .lbl { display: none; }
+  .block .txt { max-width: var(--measure, 60ch); flex: 1; min-height: 0; overflow: hidden; }
+  .block.clipped .txt { -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent); mask-image: linear-gradient(to bottom, #000 80%, transparent); }
+  .block .txt p { margin: 0 0 0.8em; }
+  .block .txt p:last-child { margin-bottom: 0; }
+
+  .seam {
+    position: absolute; top: 0; bottom: 0; width: 0;
+    border-left: 3px dashed rgba(242, 184, 75, 0.85);
+    pointer-events: none;
+  }
+  .safeband {
+    position: absolute; left: 0; right: 0; top: 0;
+    background: repeating-linear-gradient(135deg, rgba(242,184,75,.16) 0 14px, transparent 14px 28px);
+    border-bottom: 2px dashed rgba(242, 184, 75, 0.85);
+    pointer-events: none;
+  }
+  .safeband span { position: absolute; bottom: 6px; right: 16px; font-family: var(--mono); font-size: 18px; color: #f2b84b; background: rgba(0,0,0,.7); padding: 2px 8px; }
+  .seam span {
+    position: absolute; top: 12px; left: 8px; white-space: nowrap;
+    font-family: var(--mono); font-size: 18px; color: #f2b84b; background: rgba(0,0,0,.7); padding: 2px 8px;
+  }
+
+  /* ---------- Panel ---------- */
+  #panel {
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    transform: translateX(-50%);
+    width: min(390px, 100%);
+    box-sizing: border-box;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 18px calc(24px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; gap: 18px;
+    z-index: 10;
+    box-shadow: 0 0 32px rgba(0,0,0,.5);
+  }
+  /* Reach zone: keeps the panel between roughly 2 ft and 6.5 ft off the floor on an ~8 ft wall,
+     so it sits inside the band people can comfortably touch. */
+  .panel-reach #panel { top: 24%; bottom: 20%; border: 1px solid var(--line); border-radius: 8px; }
+  #panel header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  #panel h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
+  #panel h1 span { color: var(--beam); }
+  .keys { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.7; }
+  .keys kbd {
+    font-family: var(--mono); font-size: 10.5px;
+    border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 3px; padding: 0 4px; color: var(--ink); background: var(--panel-2);
+  }
+  fieldset {
+    border: 0; margin: 0; padding: 14px 0 0;
+    border-top: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 10px;
+    min-width: 0;
+  }
+  legend {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--muted); padding: 0; margin-bottom: 2px;
+    float: left; width: 100%;
+  }
+  legend + * { clear: both; }
+  .row { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: 10px; }
+  .row > label { color: var(--muted); font-size: 13px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pair > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .pair label { color: var(--muted); font-size: 12px; }
+  select, input[type="number"], input[type="text"], textarea {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+    padding: 7px 8px; width: 100%; box-sizing: border-box;
+  }
+  textarea { min-height: 110px; resize: vertical; line-height: 1.45; }
+  input[type="range"] { width: 100%; accent-color: var(--beam); }
+  .rangewrap { display: grid; grid-template-columns: 1fr 58px; gap: 8px; align-items: center; }
+  .rangewrap output, .unit { font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  input[type="color"] { width: 100%; height: 32px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); padding: 2px; }
+  :focus-visible { outline: 2px solid var(--beam); outline-offset: 2px; }
+
+  .var {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .var.on-axis { border-color: color-mix(in srgb, var(--beam) 55%, var(--line)); }
+  .var-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .var-head .name { font-weight: 600; font-size: 13px; }
+  .axis-tag {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--beam-ink); background: var(--beam); border-radius: 3px; padding: 1px 6px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chipgroup { display: flex; flex-direction: column; gap: 6px; }
+  .chipgroup + .chipgroup { margin-top: 6px; }
+  .grouphead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .grouphead span { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+  .grouphead .mini { font: inherit; font-size: 11px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 3px; padding: 2px 8px; cursor: pointer; }
+  .grouphead .mini:hover { color: var(--ink); }
+  .chip {
+    font: inherit; font-size: 12px; color: var(--muted);
+    background: transparent; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 10px; cursor: pointer; min-height: 28px;
+  }
+  .chip[aria-pressed="true"] { color: var(--beam-ink); background: var(--beam); border-color: var(--beam); font-weight: 500; }
+  .chip .sys { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.04em; margin-left: 4px; opacity: 0.75; }
+  .chip.missing .nm { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .chip .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 5px; border: 1px solid rgba(255,255,255,.25); }
+  .var .base { display: none; }
+  .var:not(.on-axis) .base { display: block; }
+  .var:not(.on-axis) .axisvals { display: none; }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0; }
+  .hint b { color: var(--ink); font-weight: 500; }
+  #fontStatus .miss { color: var(--warn); }
+
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 12.5px; color: var(--muted); background: var(--panel-2); border: 0; border-right: 1px solid var(--line); padding: 8px 6px; cursor: pointer; min-height: 36px; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--beam); color: var(--beam-ink); font-weight: 500; }
+  .btn {
+    font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 9px 12px; min-height: 40px;
+  }
+  .btn.primary { background: var(--beam); color: var(--beam-ink); border-color: var(--beam); }
+  .toggle { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; cursor: pointer; }
+  .toggle input { accent-color: var(--beam); width: 16px; height: 16px; }
+
+  #reopen {
+    position: fixed; left: 0; top: 50%; transform: translate(-50%, -50%);
+    z-index: 11; opacity: 0.4; transition: opacity .2s;
+  }
+  #reopen:hover, #reopen:focus-visible { opacity: 1; }
+  .panel-hidden #panel { display: none; }
+  body:not(.panel-hidden) #reopen { display: none; }
+  /* ---------- Pairing card (wall) ---------- */
+  #pair {
+    position: fixed; top: 50%; left: 0; transform: translate(-50%, -50%);
+    z-index: 12; width: 360px; box-sizing: border-box;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+    box-shadow: 0 0 40px rgba(0,0,0,.6);
+  }
+  #pair h2 { margin: 0; font-size: 17px; font-weight: 600; }
+  #pair .qr { background: #fff; padding: 12px; border-radius: 6px; width: 240px; height: 240px; box-sizing: content-box; }
+  #pair .qr svg { width: 100%; height: 100%; display: block; }
+  #pair .code { font-family: var(--mono); font-size: 44px; font-weight: 500; letter-spacing: 0.18em; color: var(--beam); line-height: 1; }
+  #pair .url { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-word; line-height: 1.5; }
+  #pair .url a { color: var(--beam); font-family: var(--ui); font-size: 14px; font-weight: 500; }
+  #pair .qr[hidden] { display: none; }
+  .status { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; justify-content: center; }
+  .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .status.ok { color: var(--ink); } .status.ok::before { background: #6fd08c; }
+  .status.wait::before { background: var(--beam); }
+  .status.bad { color: var(--warn); } .status.bad::before { background: var(--warn); }
+
+  /* ---------- Remote (phone) mode ---------- */
+  .remotebar { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+  .remotebar .join { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .remotebar input { font-family: var(--mono); font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; }
+  body.mode-remote { overflow: auto; }
+  .mode-remote #viewport, .mode-remote #reopen, .mode-remote #pair, .mode-remote #hideBtn, .mode-remote #fsBtn, .mode-remote .keys, .mode-remote .wall-only { display: none !important; }
+  .mode-remote #panel {
+    position: static; transform: none; width: auto; max-width: 560px; margin: 0 auto;
+    min-height: 100%; border: 0; border-radius: 0; box-shadow: none; overflow: visible;
+  }
+  .mode-remote.panel-hidden #panel { display: flex; }
+  .mode-remote .chip { min-height: 38px; font-size: 14px; padding: 6px 12px; }
+  .mode-remote select, .mode-remote input[type="text"], .mode-remote input[type="number"], .mode-remote textarea { font-size: 16px; }
+  .mode-remote .btn, .mode-remote .seg button { min-height: 44px; }
+  .mode-display .remote-only { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="viewport"><div id="sizer"><div id="stage" aria-live="polite"></div></div></div>
+
+<button class="btn primary" id="reopen" type="button">Controls (H)</button>
+
+<div id="pair" hidden>
+  <h2>Control this wall from your phone</h2>
+  <div class="qr" id="pairQR" aria-label="QR code for the remote control link"></div>
+  <div class="code" id="pairCode">····</div>
+  <div class="url" id="pairURL"></div>
+  <div class="status wait" id="pairStatus">Connecting to the pairing service…</div>
+  <div class="btns">
+    <button class="btn" id="pairPanel" type="button">Use on-wall controls</button>
+    <button class="btn" id="pairHide" type="button">Hide (R)</button>
+  </div>
+</div>
+
+<aside id="panel" aria-label="Font tester controls">
+  <header>
+    <h1>Font <span>Tester</span></h1>
+    <button class="btn" id="hideBtn" type="button">Hide</button>
+  </header>
+  <div class="remotebar remote-only">
+    <div class="status wait" id="remoteStatus">Not connected</div>
+    <div class="join">
+      <input type="text" id="joinCode" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" aria-label="Wall code">
+      <button class="btn primary" id="joinBtn" type="button">Connect</button>
+    </div>
+    <p class="hint">Enter the four-character code shown on the wall, or scan its QR code. Every change here shows up on the wall right away.</p>
+  </div>
+  <div class="keys">
+    <kbd>H</kbd> panel &nbsp; <kbd>+</kbd><kbd>−</kbd> size &nbsp; <kbd>[</kbd><kbd>]</kbd> leading &nbsp; <kbd>,</kbd><kbd>.</kbd> tracking<br>
+    <kbd>L</kbd> labels &nbsp; <kbd>G</kbd> guides &nbsp; <kbd>V</kbd> fit / actual &nbsp; <kbd>F</kbd> fullscreen &nbsp; <kbd>R</kbd> phone code
+  </div>
+
+  <fieldset>
+    <legend>Text</legend>
+    <div class="row"><label for="sample">Sample</label>
+      <select id="sample">
+        <option value="swamp">Sample 1</option>
+        <option value="flamingo">Sample 2</option>
+        <option value="custom0">Your own text</option>
+      </select>
+    </div>
+    <div class="row"><label for="paras">Paragraphs</label>
+      <select id="paras"></select>
+    </div>
+    <textarea id="custom" hidden placeholder="Paste any text here. Each line break starts a new paragraph. Saved on this computer only."></textarea>
+  </fieldset>
+
+  <fieldset>
+    <legend>Grid — what changes across the wall</legend>
+    <div class="pair">
+      <div><label for="colsVar">Across the wall</label><select id="colsVar"></select></div>
+      <div><label for="rowsVar">Stacked top/bottom</label><select id="rowsVar"></select></div>
+    </div>
+    <p class="hint">The wall is only 1080px tall, so keep stacked rows to two or three at most. Blocks that overflow are marked <b>clipped</b>.</p>
+  </fieldset>
+
+  <fieldset id="vars">
+    <legend>Type variables</legend>
+  </fieldset>
+
+  <fieldset>
+    <legend>Fonts on this machine</legend>
+    <p class="hint" id="fontStatus">Checking installed fonts…</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Layout</legend>
+    <div class="row"><label for="measure">Line length</label>
+      <div class="rangewrap"><input type="range" id="measure" min="20" max="120" step="1"><output for="measure"></output></div></div>
+    <div class="row"><label for="gap">Block gap</label>
+      <div class="rangewrap"><input type="range" id="gap" min="0" max="300" step="4"><output for="gap"></output></div></div>
+    <div class="row"><label for="blockPad">Padding</label>
+      <div class="rangewrap"><input type="range" id="blockPad" min="0" max="200" step="4"><output for="blockPad"></output></div></div>
+    <div class="row"><label for="wallPad">Wall margin</label>
+      <div class="rangewrap"><input type="range" id="wallPad" min="0" max="300" step="4"><output for="wallPad"></output></div></div>
+    <div class="row"><label for="wallBg">Wall color</label><input type="color" id="wallBg"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Wall</legend>
+    <div class="pair">
+      <div><label for="wallW">Canvas width (px)</label><input type="number" id="wallW" min="320" max="30000" step="1"></div>
+      <div><label for="wallH">Canvas height (px)</label><input type="number" id="wallH" min="200" max="8000" step="1"></div>
+    </div>
+    <div class="row"><label for="wallFt">Image height</label>
+      <div class="rangewrap"><input type="number" id="wallFt" min="1" max="100" step="0.5"><span class="unit">ft</span></div></div>
+    <p class="hint">Measure the projected image from its bottom edge to its top edge, in feet. Labels use it to estimate physical cap height and a rough reading distance (≈1 in of cap height per 10 ft).</p>
+    <div class="row"><label>Preview</label>
+      <div class="seg" role="group" aria-label="Preview scale"><button type="button" id="viewFit">Fit to screen</button><button type="button" id="viewActual">Actual px</button></div></div>
+    <div class="row"><label for="seamPos">Corners (px)</label><input type="text" id="seamPos" placeholder="e.g. 4096, 8193"></div>
+    <label class="toggle"><input type="checkbox" id="corners"> Keep blocks off the corners</label>
+    <div class="row"><label for="safeTop">Top buffer</label>
+      <div class="rangewrap"><input type="range" id="safeTop" min="0" max="300" step="5"><output for="safeTop"></output></div></div>
+    <label class="toggle"><input type="checkbox" id="seams"> Show corner &amp; buffer guides</label>
+    <p class="hint">Corners default to even thirds of 12289px (three 4096px walls). With corners on, the columns are split wall by wall so no block wraps around a corner. The top buffer keeps text off the projector's top edge.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Labels &amp; control panel</legend>
+    <label class="toggle"><input type="checkbox" id="labels"> Show spec label on each block</label>
+    <div class="row"><label for="labelSize">Label size</label>
+      <div class="rangewrap"><input type="range" id="labelSize" min="10" max="48" step="1"><output for="labelSize"></output></div></div>
+    <div class="row"><label>Panel on</label>
+      <div class="seg" role="group" aria-label="Panel position"><button type="button" data-side="leftwall">Left wall</button><button type="button" data-side="centerwall">Center</button><button type="button" data-side="rightwall">Right wall</button></div></div>
+    <div class="row"><label>Panel height</label>
+      <div class="seg" role="group" aria-label="Panel height"><button type="button" data-ph="reach">Reach zone</button><button type="button" data-ph="full">Full height</button></div></div>
+    <p class="hint">The panel sits in the middle of the chosen wall. Reach zone keeps it at arm height, away from the top and bottom edges where touch is unreliable.</p>
+  </fieldset>
+
+  <fieldset class="wall-only">
+    <legend>Phone remote</legend>
+    <div class="status wait" id="wallRemoteStatus">Starting…</div>
+    <div class="btns"><button class="btn" id="showPair" type="button">Show phone code</button><button class="btn" id="newCode" type="button">New code</button></div>
+  </fieldset>
+
+  <div class="btns">
+    <button class="btn" id="fsBtn" type="button">Fullscreen</button>
+    <button class="btn" id="resetBtn" type="button">Reset</button>
+  </div>
+</aside>
+
+<script>
+(() => {
+  // ---------- Mode: the wall ("display") or a phone/tablet ("remote", opened with ?remote=CODE) ----------
+  const params = new URLSearchParams(location.search);
+  const REMOTE = params.has("remote");
+  document.body.classList.add(REMOTE ? "mode-remote" : "mode-display");
+
+  // ---------- Fonts ----------
+  // kind "web": always available (Google Fonts). kind "sys": only if installed on this computer;
+  // "sub" is a free look-alike shown when it isn't (null = browser default).
+  const FONTS = [
+    // Sans serif
+    { id: "aptos",      cat: "sans",  kind: "sys", name: "Aptos",            fam: ["Aptos"],                         sub: null,         note: "Word & PowerPoint default since 2023" },
+    { id: "calibri",    cat: "sans",  kind: "sys", name: "Calibri",          fam: ["Calibri"],                       sub: "Carlito",    note: "Office default 2007–2023" },
+    { id: "arial",      cat: "sans",  kind: "sys", name: "Arial",            fam: ["Arial"],                         sub: "Arimo",      note: "Google Docs default" },
+    { id: "helvetica",  cat: "sans",  kind: "sys", name: "Helvetica",        fam: ["Helvetica Neue", "Helvetica"],   sub: "Arimo",      note: "museum & wayfinding staple" },
+    { id: "avenir",     cat: "sans",  kind: "sys", name: "Avenir",           fam: ["Avenir Next", "Avenir"],         sub: "Nunito Sans", note: "museum staple" },
+    { id: "futura",     cat: "sans",  kind: "sys", name: "Futura",           fam: ["Futura", "Futura PT"],           sub: "Jost",       note: "geometric classic" },
+    { id: "segoe",      cat: "sans",  kind: "sys", name: "Segoe UI",         fam: ["Segoe UI"],                      sub: null,         note: "Windows interface font" },
+    { id: "verdana",    cat: "sans",  kind: "sys", name: "Verdana",          fam: ["Verdana"],                       sub: null,         note: "designed for screens" },
+    { id: "roboto",     cat: "sans",  kind: "web", name: "Roboto",           fam: ["Roboto"],                        note: "most-used Google font" },
+    { id: "opensans",   cat: "sans",  kind: "web", name: "Open Sans",        fam: ["Open Sans"],                     note: "top-3 Google font" },
+    { id: "lato",       cat: "sans",  kind: "web", name: "Lato",             fam: ["Lato"],                          note: "top-3 Google font" },
+    { id: "montserrat", cat: "sans",  kind: "web", name: "Montserrat",       fam: ["Montserrat"],                    note: "popular geometric" },
+    { id: "sourcesans", cat: "sans",  kind: "web", name: "Source Sans 3",    fam: ["Source Sans 3"],                 note: "Adobe open source" },
+    { id: "atkinson",   cat: "sans",  kind: "web", name: "Atkinson Hyperlegible", fam: ["Atkinson Hyperlegible"],    note: "built for low vision" },
+    { id: "lexend",     cat: "sans",  kind: "web", name: "Lexend",           fam: ["Lexend"],                        note: "reading-fluency research" },
+    // Serif
+    { id: "times",      cat: "serif", kind: "sys", name: "Times New Roman",  fam: ["Times New Roman"],               sub: "Tinos",      note: "Word default before 2007" },
+    { id: "garamond",   cat: "serif", kind: "sys", name: "Garamond",         fam: ["Garamond"],                      sub: "EB Garamond", note: "book classic, ships with Office" },
+    { id: "georgia",    cat: "serif", kind: "sys", name: "Georgia",          fam: ["Georgia"],                       sub: "Gelasio",    note: "designed for screens" },
+    { id: "cambria",    cat: "serif", kind: "sys", name: "Cambria",          fam: ["Cambria"],                       sub: "Caladea",    note: "Office heading serif" },
+    { id: "baskerville",cat: "serif", kind: "sys", name: "Baskerville",      fam: ["Baskerville", "Baskerville Old Face"], sub: "Libre Baskerville", note: "18th-c. classic" },
+    { id: "ebgaramond", cat: "serif", kind: "web", name: "EB Garamond",      fam: ["EB Garamond"],                   note: "free Garamond revival" },
+    { id: "merriweather",cat:"serif", kind: "web", name: "Merriweather",     fam: ["Merriweather"],                  note: "top-10 Google font" },
+    { id: "sourceserif",cat: "serif", kind: "web", name: "Source Serif 4",   fam: ["Source Serif 4"],                note: "Adobe open source" },
+    { id: "notoserif",  cat: "serif", kind: "web", name: "Noto Serif",       fam: ["Noto Serif"],                    note: "Google's universal serif" },
+    { id: "ptserif",    cat: "serif", kind: "web", name: "PT Serif",         fam: ["PT Serif"],                      note: "public-type project" },
+    { id: "robotoslab", cat: "serif", kind: "web", name: "Roboto Slab",      fam: ["Roboto Slab"],                   note: "slab serif" },
+    { id: "playfair",   cat: "serif", kind: "web", name: "Playfair Display", fam: ["Playfair Display"],              note: "high-contrast display" },
+  ];
+  const CATS = [{ id: "serif", name: "Serif" }, { id: "sans", name: "Sans serif" }];
+  const installed = {}; // id -> true/false for sys fonts; undefined while checking
+  const generic = f => f.cat === "serif" ? "serif" : "sans-serif";
+  const q = n => `'${n}'`;
+  function stack(f) {
+    const parts = f.fam.map(q);
+    if (f.sub) parts.push(q(f.sub));
+    parts.push(generic(f));
+    return parts.join(", ");
+  }
+  function renderedAs(f) {
+    if (f.kind === "web" || installed[f.id] !== false) return null;
+    return f.sub || "browser default " + (f.cat === "serif" ? "serif" : "sans");
+  }
+
+  const SCHEMES = [
+    { id: "wb", name: "White on black", fg: "#ffffff", bg: "#000000" },
+    { id: "cream", name: "Warm white on black", fg: "#f3ecdc", bg: "#000000" },
+    { id: "gold", name: "UCF gold on black", fg: "#ffc904", bg: "#000000" },
+    { id: "charcoal", name: "Light grey on charcoal", fg: "#d6d9de", bg: "#1c1f24" },
+    { id: "navy", name: "Off-white on navy", fg: "#eef1f6", bg: "#13233f" },
+    { id: "bw", name: "Black on white", fg: "#111111", bg: "#ffffff" },
+    { id: "blackgold", name: "Black on gold", fg: "#000000", bg: "#ffc904" },
+    { id: "low", name: "Grey on black (low)", fg: "#6b6f76", bg: "#000000" },
+  ];
+  const fontById = id => FONTS.find(f => f.id === id) || FONTS[0];
+  const schemeById = id => SCHEMES.find(s => s.id === id) || SCHEMES[0];
+
+  const VARS = {
+    font:     { name: "Typeface",    values: FONTS.map(f => f.id), fmt: v => fontById(v).name },
+    size:     { name: "Size",        values: [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128, 160, 200], fmt: v => v + "px" },
+    scheme:   { name: "Colors",      values: SCHEMES.map(s => s.id), fmt: v => schemeById(v).name },
+    weight:   { name: "Weight",      values: [300, 400, 500, 700], fmt: v => ({300:"Light",400:"Regular",500:"Medium",700:"Bold"})[v] + " " + v },
+    lh:       { name: "Line height", values: [1.1, 1.3, 1.5, 1.7, 2.0], fmt: v => (+v).toFixed(2).replace(/0$/, "") },
+    tracking: { name: "Tracking",    values: [-0.02, 0, 0.02, 0.05, 0.1], fmt: v => (v > 0 ? "+" : "") + v + "em" },
+  };
+  const isStr = k => k === "font" || k === "scheme";
+
+  const SAMPLES = {
+    swamp: [
+      "The iguana fell out of the royal palm at 7:14 on a Tuesday morning, which was the first thing that went wrong for Duane Pettibone and by no means the last. It landed on the windshield of his rented Chrysler with a sound like a dropped casserole, regarded him through the glass with prehistoric contempt, and then slid off the hood and waddled toward the Publix.",
+      "Duane was in Florida to sell a man a swamp. Not metaphorically. The swamp was eleven hundred acres of sawgrass and cottonmouths west of Immokalee, and the man was a retired orthodontist from Ohio who believed, with the serene conviction of the recently sunburned, that it would make a fine golf course. Duane did not intend to correct him. Duane intended to be in Costa Rica by Labor Day.",
+      "Nobody had mentioned the woman who lived in the middle of the swamp, or her airboat, or her shotgun, or the fact that she had once served two terms in the state senate and still had the governor's cell number.",
+    ],
+    flamingo: [
+      "Tommy Varga found the first flamingo at 5:40 in the morning, standing on one leg in the fountain outside the Coral Gables courthouse, wearing a tiny orange life vest and an expression of profound regret. By noon there were eleven of them. By the time the county commission convened an emergency session on the matter, there were forty, and the life vests had been traced to a boat-rental outfit in Islamorada that went bankrupt in 1998.",
+      "Varga was a county code inspector who had once written up a Hialeah man for keeping a tapir in his carport, and he was assigned the flamingos because nobody else answered the phone. He did not know much about flamingos. He knew even less about the woman in the golf cart who had been following him since breakfast, taking notes on a legal pad and muttering the word \u201crestitution.\u201d",
+    ],
+  };
+
+  const DEFAULTS = {
+    sample: "swamp", paras: 1, customs: ["", "", ""],
+    colsVar: "font", rowsVar: "none",
+    axis: {
+      font: ["times", "georgia", "garamond", "merriweather", "sourceserif", "arial", "calibri", "helvetica", "roboto", "atkinson"],
+      size: [18, 24, 40],
+      scheme: ["wb", "cream", "gold", "charcoal", "navy", "bw"],
+      weight: [300, 400, 700],
+      lh: [1.3, 1.5, 1.7],
+      tracking: [0, 0.02, 0.05],
+    },
+    base: { font: "atkinson", size: 40, scheme: "wb", weight: 400, lh: 1.4, tracking: 0 },
+    measure: 50, gap: 48, blockPad: 36, wallPad: 40, wallBg: "#000000",
+    labels: true, labelSize: 18,
+    wallW: 12289, wallH: 1080, wallFt: 7.5,
+    view: "fit", seams: false, seamPos: "4096, 8193", corners: true, safeTop: 100, side: "leftwall", panelH: "reach",
+  };
+
+  const KEY = "font-tester-v5";
+  const clone = o => JSON.parse(JSON.stringify(o));
+  let S = null;
+  try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  if (!S || typeof S !== "object") {
+    // carry over settings from the previous version, including any pasted text
+    try { S = JSON.parse(localStorage.getItem("wall-type-tester-v4")) || JSON.parse(localStorage.getItem("wall-type-tester-v3")); } catch (e) {}
+    if (!S || typeof S !== "object") S = {};
+    if (typeof S.custom === "string") { S.customs = [S.custom, "", ""]; delete S.custom; }
+  }
+  if (!Array.isArray(S.customs) || S.customs.length !== 3) S.customs = ["", "", ""];
+  if (!/^(swamp|flamingo|custom0)$/.test(S.sample || "")) S.sample = S.sample === "custom" ? "custom0" : "swamp";
+  if (!/^(leftwall|centerwall|rightwall)$/.test(S.side || "")) S.side = "leftwall";
+  S = Object.assign(clone(DEFAULTS), S);
+  S.axis = Object.assign(clone(DEFAULTS.axis), S.axis || {});
+  S.base = Object.assign(clone(DEFAULTS.base), S.base || {});
+  let applyingRemote = false;
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    if (!applyingRemote) sendState();
+  };
+
+  // WCAG contrast
+  function lum(hex) {
+    const n = hex.replace("#", "");
+    const c = [0, 2, 4].map(i => parseInt(n.slice(i, i + 2), 16) / 255)
+      .map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, r) => r - p); return (x + 0.05) / (y + 0.05); };
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  // ---------- Installed-font detection (width comparison against generic fallbacks) ----------
+  function detectInstalled() {
+    const cv = document.createElement("canvas").getContext("2d");
+    const probe = "mmmmmmmmmmlli WWW 0123456789 Rgqy";
+    const bases = ["monospace", "serif", "sans-serif"];
+    const w = fam => { cv.font = `72px ${fam}`; return cv.measureText(probe).width; };
+    const baseW = bases.map(b => w(b));
+    for (const f of FONTS) {
+      if (f.kind !== "sys") continue;
+      installed[f.id] = f.fam.some(name => bases.some((b, i) => Math.abs(w(`${q(name)}, ${b}`) - baseW[i]) > 0.5));
+    }
+  }
+  function fontStatus() {
+    const sys = FONTS.filter(f => f.kind === "sys");
+    const miss = sys.filter(f => installed[f.id] === false);
+    const have = sys.filter(f => installed[f.id]);
+    if (REMOTE && !gotHello) { $("fontStatus").innerHTML = "Connect to the wall to see which fonts its computer has."; return; }
+    let html = REMOTE ? `Fonts on the <b>wall computer</b>. ` : "";
+    html += `<b>SYS</b> fonts only show if installed on ${REMOTE ? "that" : "this"} computer; the rest load from Google Fonts (needs internet). `;
+    html += have.length ? `Installed here: ${have.map(f => esc(f.name)).join(", ")}. ` : "";
+    html += miss.length
+      ? `<span class="miss">Missing: ${miss.map(f => esc(f.name) + (f.sub ? " → " + esc(f.sub) : "")).join(", ")}.</span> Missing fonts are struck through and shown with the look-alike after the arrow.`
+      : "Every system font on the list is installed.";
+    $("fontStatus").innerHTML = html;
+  }
+
+  // ---------- Build variable controls ----------
+  const varsBox = $("vars");
+  function chipHTML(key, v) {
+    if (key === "font") {
+      const f = fontById(v);
+      const miss = f.kind === "sys" && installed[f.id] === false;
+      return `<button type="button" class="chip${miss ? " missing" : ""}" data-var="font" data-val="${v}" title="${esc(f.note + (miss ? " — not installed, showing " + renderedAs(f) : ""))}"><span class="nm" style="font-family:${stack(f)}">${esc(f.name)}</span>${f.kind === "sys" ? `<span class="sys">SYS</span>` : ""}</button>`;
+    }
+    const sw = key === "scheme" ? `<span class="sw" style="background:${schemeById(v).fg};box-shadow:inset 0 0 0 3px ${schemeById(v).bg}"></span>` : "";
+    return `<button type="button" class="chip" data-var="${key}" data-val="${v}">${sw}${esc(VARS[key].fmt(v))}</button>`;
+  }
+  function axisValsHTML(key) {
+    if (key !== "font") return `<div class="chips">${VARS[key].values.map(v => chipHTML(key, v)).join("")}</div>`;
+    return CATS.map(c => `<div class="chipgroup"><div class="grouphead"><span>${c.name}</span>
+      <span><button type="button" class="mini" data-cat="${c.id}" data-act="all">All</button> <button type="button" class="mini" data-cat="${c.id}" data-act="none">None</button></span></div>
+      <div class="chips">${FONTS.filter(f => f.cat === c.id).map(f => chipHTML("font", f.id)).join("")}</div></div>`).join("");
+  }
+  function buildVars() {
+    varsBox.querySelectorAll(".var").forEach(n => n.remove());
+    for (const [key, def] of Object.entries(VARS)) {
+      const wrap = document.createElement("div");
+      wrap.className = "var"; wrap.id = "var-" + key;
+      let base;
+      if (key === "font") base = `<select id="base-font">${CATS.map(c => `<optgroup label="${c.name}">${FONTS.filter(f => f.cat === c.id).map(f => `<option value="${f.id}">${esc(f.name)}${f.kind === "sys" ? (installed[f.id] === false ? " (missing → " + (f.sub || "default") + ")" : " (system)") : ""}</option>`).join("")}</optgroup>`).join("")}</select>`;
+      else if (key === "scheme") base = `<select id="base-scheme">${SCHEMES.map(s => `<option value="${s.id}">${s.name}</option>`).join("")}</select>`;
+      else if (key === "weight") base = `<select id="base-weight">${def.values.map(v => `<option value="${v}">${def.fmt(v)}</option>`).join("")}</select>`;
+      else {
+        const r = { size: [8, 300, 1], lh: [0.9, 2.4, 0.05], tracking: [-0.06, 0.2, 0.005] }[key];
+        base = `<div class="rangewrap"><input type="range" id="base-${key}" min="${r[0]}" max="${r[1]}" step="${r[2]}" aria-label="Base ${def.name}"><output id="out-${key}"></output></div>`;
+      }
+      wrap.innerHTML = `<div class="var-head"><span class="name">${def.name}</span><span class="axis-tag" hidden></span></div>
+        <div class="base">${base}</div><div class="axisvals">${axisValsHTML(key)}</div>`;
+      varsBox.appendChild(wrap);
+      $("base-" + key).addEventListener("input", e => {
+        S.base[key] = isStr(key) ? e.target.value : +e.target.value; update();
+      });
+    }
+  }
+
+  const axisOpts = `<option value="none">Nothing</option>` + Object.entries(VARS).map(([k, d]) => `<option value="${k}">${d.name}</option>`).join("");
+  $("rowsVar").innerHTML = axisOpts; $("colsVar").innerHTML = axisOpts;
+
+  // ---------- Sync UI from state ----------
+  function syncUI() {
+    $("sample").value = S.sample;
+    const slot = customSlot();
+    // Paragraph menu offers 1 through however many paragraphs the chosen sample has.
+    const max = slot >= 0 ? 1 : (SAMPLES[S.sample] || [""]).length;
+    const sel = $("paras");
+    if (sel.options.length !== max) sel.innerHTML = Array.from({ length: max }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+    if (S.paras > max) S.paras = max;
+    sel.value = String(S.paras);
+    $("custom").hidden = slot < 0;
+    if (slot >= 0 && $("custom").value !== S.customs[slot]) $("custom").value = S.customs[slot];
+    $("paras").disabled = slot >= 0;
+    $("rowsVar").value = S.rowsVar; $("colsVar").value = S.colsVar;
+    for (const key of Object.keys(VARS)) {
+      $("base-" + key).value = String(S.base[key]);
+      const out = $("out-" + key); if (out) out.textContent = VARS[key].fmt(+S.base[key]);
+      const onAxis = S.colsVar === key ? "across" : S.rowsVar === key ? "stacked" : "";
+      const box = $("var-" + key);
+      box.classList.toggle("on-axis", !!onAxis);
+      const tag = box.querySelector(".axis-tag"); tag.hidden = !onAxis; tag.textContent = onAxis;
+      box.querySelectorAll(".chip").forEach(c => {
+        const v = isStr(key) ? c.dataset.val : +c.dataset.val;
+        c.setAttribute("aria-pressed", S.axis[key].includes(v) ? "true" : "false");
+      });
+    }
+    for (const k of ["measure", "gap", "blockPad", "wallPad", "labelSize"]) {
+      $(k).value = S[k];
+      $(k).nextElementSibling.textContent = k === "measure" ? S[k] + "ch" : S[k] + "px";
+    }
+    $("wallBg").value = S.wallBg; $("labels").checked = S.labels;
+    $("wallW").value = S.wallW; $("wallH").value = S.wallH; $("wallFt").value = S.wallFt;
+    $("seams").checked = S.seams; $("seamPos").value = S.seamPos; $("corners").checked = S.corners;
+    $("safeTop").value = S.safeTop; $("safeTop").nextElementSibling.textContent = S.safeTop + "px";
+    $("viewFit").setAttribute("aria-pressed", S.view === "fit"); $("viewActual").setAttribute("aria-pressed", S.view !== "fit");
+    document.querySelectorAll("[data-side]").forEach(b => b.setAttribute("aria-pressed", b.dataset.side === S.side));
+    document.querySelectorAll("[data-ph]").forEach(b => b.setAttribute("aria-pressed", b.dataset.ph === S.panelH));
+  }
+
+  // ---------- Stage sizing ----------
+  function layoutStage() {
+    if (REMOTE) return;
+    const stage = $("stage"), sizer = $("sizer"), vp = $("viewport");
+    stage.style.width = S.wallW + "px"; stage.style.height = S.wallH + "px";
+    let s = 1;
+    if (S.view === "fit") s = Math.min(vp.clientWidth / S.wallW, vp.clientHeight / S.wallH, 1);
+    document.body.classList.toggle("fit", S.view === "fit" && s < 1);
+    stage.style.transform = s === 1 ? "none" : `scale(${s})`;
+    sizer.style.width = S.wallW * s + "px"; sizer.style.height = S.wallH * s + "px";
+    placePanel(s);
+  }
+  // Center the panel (and the reopen button) on the middle of the chosen wall.
+  function placePanel(s) {
+    const vp = $("viewport"), panel = $("panel");
+    const edges = [0, ...cornerList(), S.wallW];
+    const idx = { leftwall: 0, centerwall: Math.floor((edges.length - 2) / 2), rightwall: edges.length - 2 }[S.side] || 0;
+    const mid = (edges[idx] + edges[idx + 1]) / 2;
+    const left = $("sizer").getBoundingClientRect().left + mid * s;
+    const half = panel.offsetWidth / 2 || 195;
+    const x = Math.max(half, Math.min(vp.clientWidth - half, left));
+    panel.style.left = x + "px";
+    $("reopen").style.left = Math.max(90, Math.min(vp.clientWidth - 90, left)) + "px";
+    $("pair").style.left = Math.max(190, Math.min(vp.clientWidth - 190, left)) + "px";
+    // On a laptop preview the wall is a thin strip, so reach-zone height only applies near full size.
+    document.body.classList.toggle("panel-reach", S.panelH === "reach" && s > 0.9);
+  }
+
+  // ---------- Render wall ----------
+  function customSlot() { const m = /^custom(0)$/.exec(S.sample); return m ? +m[1] : -1; }
+  function paragraphs() {
+    const slot = customSlot();
+    if (slot >= 0) {
+      const t = S.customs[slot].trim() || "Paste your own text into the box in the panel.";
+      return t.split(/\n+/).map(p => p.replace(/\s+/g, " ").trim()).filter(Boolean);
+    }
+    return SAMPLES[S.sample].slice(0, S.paras);
+  }
+  function axisValues(key) {
+    if (key === "none") return [null];
+    const vals = VARS[key].values.filter(v => S.axis[key].includes(v));
+    return vals.length ? vals : [S.base[key]];
+  }
+
+  function cornerList() {
+    return [...new Set(String(S.seamPos).split(/[,\s]+/).map(Number).filter(n => n > 0 && n < S.wallW))].sort((a, b) => a - b);
+  }
+  function render() {
+    if (REMOTE) return; // phones only show controls
+    const stage = $("stage");
+    stage.style.setProperty("--wall-bg", S.wallBg);
+    stage.style.setProperty("--gap", S.gap + "px");
+    stage.style.setProperty("--block-pad", S.blockPad + "px");
+    stage.style.setProperty("--wall-pad", S.wallPad + "px");
+    stage.style.setProperty("--safe-top", S.safeTop + "px");
+    stage.style.setProperty("--measure", S.measure + "ch");
+    stage.style.setProperty("--label-size", S.labelSize + "px");
+    stage.classList.toggle("hide-labels", !S.labels);
+    layoutStage();
+
+    const rows = axisValues(S.rowsVar), cols = axisValues(S.colsVar);
+    const paras = paragraphs();
+    const body = paras.map(p => `<p>${esc(p)}</p>`).join("");
+    const inPerPx = (S.wallFt * 12) / S.wallH;
+
+    function block(r, c) {
+      const v = Object.assign({}, S.base);
+      if (S.rowsVar !== "none") v[S.rowsVar] = r;
+      if (S.colsVar !== "none") v[S.colsVar] = c;
+      const f = fontById(v.font), sc = schemeById(v.scheme);
+      const cr = contrast(sc.fg, sc.bg);
+      const capIn = v.size * 0.7 * inPerPx;
+      const readFt = Math.round(capIn * 10);
+      const sub = renderedAs(f);
+      const fontLbl = sub
+        ? `<b class="flag">${esc(f.name)} missing → ${esc(sub)}</b>`
+        : `<b>${esc(f.name)}</b><span class="tag">${f.cat === "serif" ? "serif" : "sans"}</span>`;
+      const lbl = `${fontLbl} <span class="dim">· ${v.size}px · ${VARS.weight.fmt(v.weight)} · LH ${VARS.lh.fmt(+v.lh)} · TR ${VARS.tracking.fmt(+v.tracking)}</span><br>` +
+        `<span class="dim">${esc(sc.name)} · </span><span class="${cr < 4.5 ? "flag" : "dim"}">contrast ${cr.toFixed(1)}:1</span>` +
+        `<span class="dim"> · cap ≈ ${capIn.toFixed(1)} in · reads to ~${readFt} ft</span><span class="cliptag"></span>`;
+      return `<article class="block" style="background:${sc.bg};color:${sc.fg}">
+        <div class="lbl">${lbl}</div>
+        <div class="txt" style="font-family:${stack(f)};font-size:${v.size}px;font-weight:${v.weight};line-height:${v.lh};letter-spacing:${v.tracking}em">${body}</div>
+      </article>`;
+    }
+
+    // Wall segments: one per wall when keeping blocks off corners, otherwise one across the whole canvas.
+    const corners = cornerList();
+    const edges = S.corners ? [0, ...corners, S.wallW] : [0, S.wallW];
+    const nSeg = Math.min(edges.length - 1, cols.length);   // never leave a wall with zero columns
+    const segEdges = nSeg === edges.length - 1 ? edges : [0, ...corners.slice(0, nSeg - 1), S.wallW];
+    // Split columns as evenly as possible, extra columns going to the first walls.
+    const per = Math.floor(cols.length / nSeg), extra = cols.length % nSeg;
+    let out = "", ci = 0;
+    for (let w = 0; w < nSeg; w++) {
+      const n = per + (w < extra ? 1 : 0);
+      const segCols = cols.slice(ci, ci + n); ci += n;
+      let cells = "";
+      for (const r of rows) for (const c of segCols) cells += block(r, c);
+      out += `<div class="wallseg" style="left:${segEdges[w]}px;width:${segEdges[w + 1] - segEdges[w]}px">
+        <div class="grid" style="grid-template-columns:repeat(${segCols.length}, minmax(0, 1fr));grid-template-rows:repeat(${rows.length}, minmax(0, 1fr))">${cells}</div></div>`;
+    }
+    if (S.seams) {
+      if (S.safeTop > 0) out += `<div class="safeband" style="height:${S.safeTop}px"><span>top buffer ${S.safeTop}px</span></div>`;
+      corners.forEach(x => { out += `<div class="seam" style="left:${x}px"><span>corner ${x}px</span></div>`; });
+    }
+    stage.innerHTML = out;
+    markClipped();
+  }
+  function markClipped() {
+    if (REMOTE) return;
+    $("stage").querySelectorAll(".block").forEach(b => {
+      const t = b.querySelector(".txt");
+      const clipped = t.scrollHeight > t.clientHeight + 2;
+      b.classList.toggle("clipped", clipped);
+      b.querySelector(".cliptag").innerHTML = clipped ? ` <span class="flag">· clipped</span>` : "";
+    });
+  }
+
+  function update() { syncUI(); render(); save(); }
+
+  // ---------- Events ----------
+  $("sample").addEventListener("change", e => { S.sample = e.target.value; update(); });
+  $("paras").addEventListener("change", e => { S.paras = +e.target.value; update(); });
+  $("custom").addEventListener("input", e => { const i = customSlot(); if (i >= 0) { S.customs[i] = e.target.value; render(); save(); } });
+  $("rowsVar").addEventListener("change", e => {
+    S.rowsVar = e.target.value; if (S.rowsVar === S.colsVar && S.rowsVar !== "none") S.colsVar = "none"; update();
+  });
+  $("colsVar").addEventListener("change", e => {
+    S.colsVar = e.target.value; if (S.rowsVar === S.colsVar && S.colsVar !== "none") S.rowsVar = "none"; update();
+  });
+  varsBox.addEventListener("click", e => {
+    const m = e.target.closest(".mini");
+    if (m) {
+      const ids = FONTS.filter(f => f.cat === m.dataset.cat).map(f => f.id);
+      S.axis.font = S.axis.font.filter(id => !ids.includes(id));
+      if (m.dataset.act === "all") S.axis.font.push(...ids);
+      update(); return;
+    }
+    const c = e.target.closest(".chip"); if (!c) return;
+    const key = c.dataset.var; const v = isStr(key) ? c.dataset.val : +c.dataset.val;
+    const set = S.axis[key]; const i = set.indexOf(v);
+    if (i >= 0) set.splice(i, 1); else set.push(v);
+    update();
+  });
+  for (const k of ["measure", "gap", "blockPad", "wallPad", "labelSize"]) $(k).addEventListener("input", e => { S[k] = +e.target.value; update(); });
+  $("wallBg").addEventListener("input", e => { S.wallBg = e.target.value; update(); });
+  $("labels").addEventListener("change", e => { S.labels = e.target.checked; update(); });
+  for (const k of ["wallW", "wallH", "wallFt"]) $(k).addEventListener("change", e => { const n = +e.target.value; if (n > 0) { S[k] = n; update(); } });
+  $("seams").addEventListener("change", e => { S.seams = e.target.checked; update(); });
+  $("corners").addEventListener("change", e => { S.corners = e.target.checked; update(); });
+  $("safeTop").addEventListener("input", e => { S.safeTop = +e.target.value; update(); });
+  $("seamPos").addEventListener("change", e => { S.seamPos = e.target.value; update(); });
+  $("viewFit").addEventListener("click", () => { S.view = "fit"; update(); });
+  $("viewActual").addEventListener("click", () => { S.view = "actual"; update(); });
+  document.querySelectorAll("[data-side]").forEach(b => b.addEventListener("click", () => { S.side = b.dataset.side; update(); }));
+  document.querySelectorAll("[data-ph]").forEach(b => b.addEventListener("click", () => { S.panelH = b.dataset.ph; update(); }));
+
+  const togglePanel = () => { document.body.classList.toggle("panel-hidden"); layoutStage(); updatePair(); };
+  $("hideBtn").addEventListener("click", togglePanel);
+  $("reopen").addEventListener("click", togglePanel);
+  const fs = () => {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen().then(() => setTimeout(update, 200)).catch(() => {});
+    } catch (e) {}
+  };
+  $("fsBtn").addEventListener("click", fs);
+  let resetArmed = false;
+  $("resetBtn").addEventListener("click", e => {
+    if (!resetArmed) { resetArmed = true; e.target.textContent = "Tap again to reset"; setTimeout(() => { resetArmed = false; e.target.textContent = "Reset"; }, 2500); return; }
+    S = clone(DEFAULTS); resetArmed = false; e.target.textContent = "Reset"; update();
+  });
+
+  // Keyboard nudges: change the base value, or shift every axis value if that variable is on an axis.
+  function nudge(key, delta, min, max, digits) {
+    const clamp = x => Math.min(max, Math.max(min, +(x + delta).toFixed(digits)));
+    S.base[key] = clamp(+S.base[key]);
+    if (S.rowsVar === key || S.colsVar === key) {
+      VARS[key].values = [...new Set(VARS[key].values.map(clamp))];
+      S.axis[key] = [...new Set(S.axis[key].map(clamp))];
+      $("var-" + key).querySelector(".axisvals").innerHTML = axisValsHTML(key);
+    }
+    update();
+  }
+  document.addEventListener("keydown", e => {
+    if (e.target.matches("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "h") togglePanel();
+    else if (k === "r" && !REMOTE) { pairDismissed = !pairDismissed; updatePair(); }
+    else if (k === "l") { S.labels = !S.labels; update(); }
+    else if (k === "g") { S.seams = !S.seams; update(); }
+    else if (k === "v") { S.view = S.view === "fit" ? "actual" : "fit"; update(); }
+    else if (k === "f") fs();
+    else if (k === "+" || k === "=") nudge("size", 4, 8, 400, 0);
+    else if (k === "-" || k === "_") nudge("size", -4, 8, 400, 0);
+    else if (k === "]") nudge("lh", 0.05, 0.8, 3, 2);
+    else if (k === "[") nudge("lh", -0.05, 0.8, 3, 2);
+    else if (k === ".") nudge("tracking", 0.005, -0.1, 0.3, 3);
+    else if (k === ",") nudge("tracking", -0.005, -0.1, 0.3, 3);
+    else return;
+    e.preventDefault();
+  });
+
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { layoutStage(); }, 100); });
+
+  // ---------- Phone remote (PeerJS) ----------
+  // The wall registers a short code with the free PeerJS pairing service; phones connect to it by code,
+  // then settings travel directly between the devices. ?peerhost=&peerport=&peerpath=&peersecure=1
+  // point both pages at a self-hosted PeerJS server instead of the public one.
+  const PREFIX = "ucf-dec-font-tester-";
+  const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const newCodeStr = () => Array.from({ length: 4 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
+  function peerOpts() {
+    const h = params.get("peerhost");
+    if (!h) return { debug: 0 };
+    return { debug: 0, host: h, port: +(params.get("peerport") || 443), path: params.get("peerpath") || "/", secure: params.get("peersecure") === "1" };
+  }
+  const passThrough = () => ["peerhost", "peerport", "peerpath", "peersecure"].filter(k => params.has(k)).map(k => `&${k}=${encodeURIComponent(params.get(k))}`).join("");
+  const conns = new Set();
+  let peer = null, gotHello = false, pairDismissed = false, sendTimer = null, sendDirty = false;
+  const numericVals = () => ({ size: VARS.size.values, lh: VARS.lh.values, tracking: VARS.tracking.values });
+  function setStatus(id, text, kind) { const el = $(id); if (!el) return; el.textContent = text; el.className = "status " + (kind || ""); }
+
+  function sendNow(except) {
+    const msg = { type: "state", state: S, vals: numericVals() };
+    conns.forEach(c => { if (c !== except && c.open) { try { c.send(msg); } catch (e) {} } });
+  }
+  // Coalesce rapid changes (slider drags) into at most ~25 messages a second.
+  function sendState() {
+    if (!conns.size) return;
+    if (sendTimer) { sendDirty = true; return; }
+    sendNow();
+    sendTimer = setTimeout(() => { sendTimer = null; if (sendDirty) { sendDirty = false; sendState(); } }, 40);
+  }
+  function applyState(state, vals) {
+    if (vals) for (const k of ["size", "lh", "tracking"]) {
+      if (Array.isArray(vals[k]) && vals[k].join() !== VARS[k].values.join()) {
+        VARS[k].values = vals[k].slice();
+        const box = $("var-" + k); if (box) box.querySelector(".axisvals").innerHTML = axisValsHTML(k);
+      }
+    }
+    const next = Object.assign(clone(DEFAULTS), state || {});
+    next.axis = Object.assign(clone(DEFAULTS.axis), next.axis || {});
+    next.base = Object.assign(clone(DEFAULTS.base), next.base || {});
+    S = next;
+    applyingRemote = true;
+    try { update(); } finally { applyingRemote = false; }
+  }
+
+  // ----- wall side -----
+  let roomCode = "";
+  try { roomCode = localStorage.getItem("font-tester-room") || ""; } catch (e) {}
+  if (!/^[A-Z0-9]{4}$/.test(roomCode)) roomCode = newCodeStr();
+  let idRetries = 0;
+  function remoteLink() {
+    return `${location.origin}${location.pathname}?remote=${roomCode}${passThrough()}`;
+  }
+  function drawPair() {
+    $("pairCode").textContent = roomCode;
+    const link = remoteLink();
+    const local = location.protocol === "file:";
+    $("pairQR").hidden = local;
+    if (local) {
+      // Opened from a file on this computer: a phone can't reach it, but a second tab here can.
+      $("pairURL").innerHTML = `This page is opened from a file on this computer, so a phone can't reach it yet. Put it on the web (e.g. GitHub Pages) to get a QR code.<br><br><a href="${esc(link)}" target="_blank" rel="noopener">Test the remote in a new tab</a>`;
+    } else {
+      $("pairURL").textContent = link;
+      if (window.qrcode) {
+        const qr = qrcode(0, "M"); qr.addData(link); qr.make();
+        $("pairQR").innerHTML = qr.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
+      } else $("pairQR").hidden = true;
+    }
+  }
+  function updatePair() {
+    if (REMOTE) return;
+    const panelOpen = !document.body.classList.contains("panel-hidden");
+    $("pair").hidden = pairDismissed || conns.size > 0 || panelOpen;
+    const n = [...conns].filter(c => c.open).length;
+    if (peer && peer.open) setStatus("wallRemoteStatus", n ? `${n} phone${n > 1 ? "s" : ""} connected · code ${roomCode}` : `Waiting for a phone · code ${roomCode}`, n ? "ok" : "wait");
+  }
+  function startWall() {
+    drawPair();
+    if (!window.Peer) {
+      setStatus("pairStatus", "Couldn't load the pairing library. Check this computer's internet connection.", "bad");
+      setStatus("wallRemoteStatus", "Phone remote unavailable (no internet?)", "bad");
+      return;
+    }
+    try { localStorage.setItem("font-tester-room", roomCode); } catch (e) {}
+    peer = new Peer(PREFIX + roomCode.toLowerCase(), peerOpts());
+    peer.on("open", () => { idRetries = 0; setStatus("pairStatus", "Ready — scan the code or open the link on a phone", "ok"); updatePair(); });
+    peer.on("connection", conn => {
+      conns.add(conn);
+      conn.on("open", () => {
+        conn.send({ type: "hello", state: S, vals: numericVals(), installed });
+        updatePair();
+      });
+      conn.on("data", d => {
+        if (!d || d.type !== "state") return;
+        applyState(d.state, d.vals);
+        sendNow(conn); // keep any other connected phones in step
+      });
+      const drop = () => { conns.delete(conn); updatePair(); };
+      conn.on("close", drop); conn.on("error", drop);
+    });
+    peer.on("disconnected", () => { setStatus("pairStatus", "Reconnecting to the pairing service…", "wait"); setTimeout(() => { if (peer && !peer.destroyed) peer.reconnect(); }, 2000); });
+    peer.on("error", e => {
+      if (e.type === "unavailable-id") {
+        // Usually the same code from a page that just reloaded; give the service a moment to release it.
+        if (idRetries++ < 4) { peer.destroy(); setTimeout(startWall, 3000); setStatus("pairStatus", "Reclaiming code…", "wait"); return; }
+        roomCode = newCodeStr(); idRetries = 0; peer.destroy(); startWall(); return;
+      }
+      if (["network", "server-error", "socket-error", "socket-closed"].includes(e.type)) {
+        setStatus("pairStatus", "Can't reach the pairing service. Retrying…", "bad");
+        peer.destroy(); setTimeout(startWall, 5000);
+      }
+    });
+  }
+
+  // ----- phone side -----
+  let wallConn = null, joinCode = (params.get("remote") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4), retryTimer = null;
+  function connectRemote() {
+    clearTimeout(retryTimer);
+    if (!/^[A-Z0-9]{4}$/.test(joinCode)) { setStatus("remoteStatus", "Enter the four-character code shown on the wall", "wait"); return; }
+    $("joinCode").value = joinCode;
+    if (!window.Peer) { setStatus("remoteStatus", "Couldn't load the pairing library. Check your connection and reload.", "bad"); return; }
+    history.replaceState(null, "", `${location.pathname}?remote=${joinCode}${passThrough()}`);
+    setStatus("remoteStatus", `Connecting to wall ${joinCode}…`, "wait");
+    const go = () => {
+      if (wallConn) { try { wallConn.close(); } catch (e) {} conns.delete(wallConn); }
+      wallConn = peer.connect(PREFIX + joinCode.toLowerCase(), { reliable: true });
+      conns.add(wallConn);
+      const c = wallConn;
+      c.on("open", () => setStatus("remoteStatus", `Connected to wall ${joinCode}`, "ok"));
+      c.on("data", d => {
+        if (!d) return;
+        if (d.type === "hello") {
+          gotHello = true;
+          if (d.installed) Object.assign(installed, d.installed);
+          buildVars(); fontStatus();
+          applyState(d.state, d.vals);
+        } else if (d.type === "state") applyState(d.state, d.vals);
+      });
+      const lost = () => {
+        conns.delete(c);
+        if (c !== wallConn) return;
+        setStatus("remoteStatus", `Lost the wall. Retrying…`, "bad");
+        retryTimer = setTimeout(go, 3000);
+      };
+      c.on("close", lost); c.on("error", lost);
+    };
+    if (peer && peer.open) { go(); return; }
+    if (peer) peer.destroy();
+    peer = new Peer(undefined, peerOpts());
+    peer.on("open", go);
+    peer.on("disconnected", () => setTimeout(() => { if (peer && !peer.destroyed) peer.reconnect(); }, 2000));
+    peer.on("error", e => {
+      if (e.type === "peer-unavailable") { setStatus("remoteStatus", `No wall is showing code ${joinCode} right now. Check the code; retrying…`, "bad"); retryTimer = setTimeout(go, 4000); return; }
+      if (["network", "server-error", "socket-error", "socket-closed"].includes(e.type)) {
+        setStatus("remoteStatus", "Can't reach the pairing service. Retrying…", "bad");
+        retryTimer = setTimeout(() => { peer.destroy(); peer = null; connectRemote(); }, 5000);
+      }
+    });
+  }
+
+  // ---------- Boot ----------
+  if (!REMOTE) detectInstalled();
+  buildVars();
+  fontStatus();
+  if (!REMOTE) document.body.classList.add("panel-hidden"); // the wall starts clean; H or the pairing card opens the panel
+  update();
+  if (REMOTE) {
+    $("joinBtn").addEventListener("click", () => { joinCode = $("joinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4); if (peer) { peer.destroy(); peer = null; } connectRemote(); });
+    $("joinCode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn").click(); });
+    connectRemote();
+  } else {
+    $("pairPanel").addEventListener("click", () => togglePanel());
+    $("pairHide").addEventListener("click", () => { pairDismissed = true; updatePair(); });
+    $("showPair").addEventListener("click", () => { pairDismissed = false; document.body.classList.add("panel-hidden"); layoutStage(); updatePair(); });
+    $("newCode").addEventListener("click", () => { roomCode = newCodeStr(); conns.forEach(c => c.close()); conns.clear(); if (peer) peer.destroy(); startWall(); updatePair(); });
+    updatePair();
+    startWall();
+  }
+  // Web fonts arrive late: re-check clipping (and re-detect, since some systems report late) once they load.
+  const webFams = [...new Set(FONTS.flatMap(f => f.kind === "web" ? f.fam : (f.sub ? [f.sub] : [])))];
+  Promise.all(webFams.map(n => document.fonts.load(`400 32px ${q(n)}`).catch(() => {}))).then(() => {
+    if (document.fonts.ready) return document.fonts.ready;
+  }).then(() => markClipped());
+})();
+</script>
