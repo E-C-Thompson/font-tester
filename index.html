@@ -404,7 +404,11 @@
   </div>
 </aside>
 
-<script src="samples.js"></script>
+<script>
+  // Load samples.js fresh on every visit (with a throwaway query string) so edits show up right away
+  // instead of waiting out the browser's cache.
+  document.write('<script src="samples.js?v=' + Date.now() + '"><\/script>');
+</script>
 <script>
 (() => {
   // ---------- Mode: the wall ("display") or a phone/tablet ("remote", opened with ?remote=CODE) ----------
