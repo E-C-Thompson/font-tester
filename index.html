@@ -32,16 +32,16 @@
 <style>
   /* Single dark theme on purpose: this runs in a projection room, where a bright UI spills light onto the wall. */
   :root {
-    color-scheme: dark;
-    --ground: #07080a;
-    --panel: #15181d;
-    --panel-2: #1c2027;
-    --line: #2b313a;
-    --ink: #e7e9ec;
-    --muted: #8e96a3;
-    --beam: #f2b84b;       /* projector-lamp amber */
-    --beam-ink: #1a1307;
-    --warn: #ff8a7a;
+    color-scheme: light;
+    --ground: #000000;     /* behind the wall itself */
+    --panel: #ffffff;
+    --panel-2: #f1f5fb;
+    --line: #d2dbe8;
+    --ink: #13233f;
+    --muted: #5a6a84;
+    --beam: #1f5fbf;       /* control-panel blue */
+    --beam-ink: #ffffff;
+    --warn: #e5484d;
     --ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
   }
@@ -112,19 +112,19 @@
 
   .seam {
     position: absolute; top: 0; bottom: 0; width: 0;
-    border-left: 3px dashed rgba(242, 184, 75, 0.85);
+    border-left: 3px dashed rgba(77, 155, 255, 0.9);
     pointer-events: none;
   }
   .safeband {
     position: absolute; left: 0; right: 0; top: 0;
-    background: repeating-linear-gradient(135deg, rgba(242,184,75,.16) 0 14px, transparent 14px 28px);
-    border-bottom: 2px dashed rgba(242, 184, 75, 0.85);
+    background: repeating-linear-gradient(135deg, rgba(77,155,255,.18) 0 14px, transparent 14px 28px);
+    border-bottom: 2px dashed rgba(77, 155, 255, 0.9);
     pointer-events: none;
   }
-  .safeband span { position: absolute; bottom: 6px; right: 16px; font-family: var(--mono); font-size: 18px; color: #f2b84b; background: rgba(0,0,0,.7); padding: 2px 8px; }
+  .safeband span { position: absolute; bottom: 6px; right: 16px; font-family: var(--mono); font-size: 18px; color: #7fb6ff; background: rgba(0,0,0,.7); padding: 2px 8px; }
   .seam span {
     position: absolute; top: 12px; left: 8px; white-space: nowrap;
-    font-family: var(--mono); font-size: 18px; color: #f2b84b; background: rgba(0,0,0,.7); padding: 2px 8px;
+    font-family: var(--mono); font-size: 18px; color: #7fb6ff; background: rgba(0,0,0,.7); padding: 2px 8px;
   }
 
   /* ---------- Panel ---------- */
@@ -267,7 +267,7 @@
   .remotebar { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
   .remotebar .join { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .remotebar input { font-family: var(--mono); font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; }
-  body.mode-remote { overflow: auto; }
+  body.mode-remote { overflow: auto; background: #eef2f8; }
   .mode-remote #viewport, .mode-remote #reopen, .mode-remote #pair, .mode-remote #hideBtn, .mode-remote #fsBtn, .mode-remote .keys, .mode-remote .wall-only { display: none !important; }
   .mode-remote #panel {
     position: static; transform: none; width: auto; max-width: 560px; margin: 0 auto;
