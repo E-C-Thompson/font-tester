@@ -26,7 +26,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300..800&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400..800&display=swap">
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   /* Single dark theme on purpose: this runs in a projection room, where a bright UI spills light onto the wall. */
@@ -288,7 +289,7 @@
   <div class="qr" id="pairQR" aria-label="QR code for the remote control link"></div>
   <div class="code" id="pairCode">····</div>
   <div class="url" id="pairURL"></div>
-  <div class="status wait" id="pairStatus">Connecting to the pairing service…</div>
+  <div class="status wait" id="pairStatus">Connecting…</div>
   <div class="btns">
     <button class="btn" id="pairPanel" type="button">Use on-wall controls</button>
     <button class="btn" id="pairHide" type="button">Hide (R)</button>
@@ -858,34 +859,36 @@
 
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { layoutStage(); }, 100); });
 
-  // ---------- Phone remote (PeerJS) ----------
-  // The wall registers a short code with the free PeerJS pairing service; phones connect to it by code,
-  // then settings travel directly between the devices. ?peerhost=&peerport=&peerpath=&peersecure=1
-  // point both pages at a self-hosted PeerJS server instead of the public one.
-  const PREFIX = "ucf-dec-font-tester-";
+  // ---------- Phone remote (Firebase Realtime Database relay) ----------
+  // The wall and any phones share one small record at rooms/<CODE>. Each writes the full settings
+  // there when it changes something and listens for the others' writes. Everything travels over
+  // ordinary HTTPS/WebSocket traffic, so it works on networks that block device-to-device links.
+  const DB_URL = params.get("db") || "https://dec-font-tester-default-rtdb.firebaseio.com";
   const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const newCodeStr = () => Array.from({ length: 4 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
-  function peerOpts() {
-    const h = params.get("peerhost");
-    if (!h) return { debug: 0 };
-    return { debug: 0, host: h, port: +(params.get("peerport") || 443), path: params.get("peerpath") || "/", secure: params.get("peersecure") === "1" };
-  }
-  const passThrough = () => ["peerhost", "peerport", "peerpath", "peersecure"].filter(k => params.has(k)).map(k => `&${k}=${encodeURIComponent(params.get(k))}`).join("");
-  const conns = new Set();
-  let peer = null, gotHello = false, pairDismissed = false, sendTimer = null, sendDirty = false;
+  const clientId = Array.from({ length: 12 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+  const passThrough = () => params.has("db") ? `&db=${encodeURIComponent(params.get("db"))}` : "";
+  let db = null;
+  try { if (window.firebase) { firebase.initializeApp({ databaseURL: DB_URL }); db = firebase.database(); } } catch (e) { db = null; }
+
+  let roomRef = null, roomCode = "", lastStateStr = "", lastInstalledStr = "", gotHello = false, pairDismissed = false;
+  let online = false, phonesHere = 0, wallHere = false, readyToSend = false, sendTimer = null, sendDirty = false;
+  const conns = { get size() { return REMOTE ? (wallHere ? 1 : 0) : phonesHere; } }; // for updatePair / sendState checks
   const numericVals = () => ({ size: VARS.size.values, lh: VARS.lh.values, tracking: VARS.tracking.values });
   function setStatus(id, text, kind) { const el = $(id); if (!el) return; el.textContent = text; el.className = "status " + (kind || ""); }
 
-  function sendNow(except) {
-    const msg = { type: "state", state: S, vals: numericVals() };
-    conns.forEach(c => { if (c !== except && c.open) { try { c.send(msg); } catch (e) {} } });
+  function sendNow() {
+    if (!roomRef || !readyToSend) return;
+    const str = JSON.stringify({ S, vals: numericVals() });
+    lastStateStr = str;
+    roomRef.update({ state: str, from: clientId, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
   }
-  // Coalesce rapid changes (slider drags) into at most ~25 messages a second.
+  // Coalesce rapid changes (slider drags) into at most ~16 writes a second.
   function sendState() {
-    if (!conns.size) return;
+    if (!roomRef || !readyToSend) return;
     if (sendTimer) { sendDirty = true; return; }
     sendNow();
-    sendTimer = setTimeout(() => { sendTimer = null; if (sendDirty) { sendDirty = false; sendState(); } }, 40);
+    sendTimer = setTimeout(() => { sendTimer = null; if (sendDirty) { sendDirty = false; sendState(); } }, 60);
   }
   function applyState(state, vals) {
     if (vals) for (const k of ["size", "lh", "tracking"]) {
@@ -901,22 +904,25 @@
     applyingRemote = true;
     try { update(); } finally { applyingRemote = false; }
   }
+  function handleRoom(v) {
+    v = v || {};
+    if (v.state && v.from !== clientId && v.state !== lastStateStr) {
+      lastStateStr = v.state;
+      try { const d = JSON.parse(v.state); applyState(d.S, d.vals); } catch (e) {}
+    }
+  }
+  if (db) db.ref(".info/connected").on("value", snap => { online = !!snap.val(); REMOTE ? updateRemoteStatus() : updatePair(); });
 
   // ----- wall side -----
-  let roomCode = "";
   try { roomCode = localStorage.getItem("font-tester-room") || ""; } catch (e) {}
   if (!/^[A-Z0-9]{4}$/.test(roomCode)) roomCode = newCodeStr();
-  let idRetries = 0;
-  function remoteLink() {
-    return `${location.origin}${location.pathname}?remote=${roomCode}${passThrough()}`;
-  }
+  function remoteLink() { return `${location.origin}${location.pathname}?remote=${roomCode}${passThrough()}`; }
   function drawPair() {
     $("pairCode").textContent = roomCode;
     const link = remoteLink();
     const local = location.protocol === "file:";
     $("pairQR").hidden = local;
     if (local) {
-      // Opened from a file on this computer: a phone can't reach it, but a second tab here can.
       $("pairURL").innerHTML = `This page is opened from a file on this computer, so a phone can't reach it yet. Put it on the web (e.g. GitHub Pages) to get a QR code.<br><br><a href="${esc(link)}" target="_blank" rel="noopener">Test the remote in a new tab</a>`;
     } else {
       $("pairURL").textContent = link;
@@ -929,92 +935,85 @@
   function updatePair() {
     if (REMOTE) return;
     const panelOpen = !document.body.classList.contains("panel-hidden");
-    $("pair").hidden = pairDismissed || conns.size > 0 || panelOpen;
-    const n = [...conns].filter(c => c.open).length;
-    if (peer && peer.open) setStatus("wallRemoteStatus", n ? `${n} phone${n > 1 ? "s" : ""} connected · code ${roomCode}` : `Waiting for a phone · code ${roomCode}`, n ? "ok" : "wait");
+    $("pair").hidden = pairDismissed || phonesHere > 0 || panelOpen;
+    if (!db) return;
+    if (!online) { setStatus("pairStatus", "Offline. Waiting for an internet connection…", "bad"); setStatus("wallRemoteStatus", "Offline", "bad"); return; }
+    setStatus("pairStatus", "Ready — scan the code or open the link on a phone", "ok");
+    setStatus("wallRemoteStatus", phonesHere ? `${phonesHere} phone${phonesHere > 1 ? "s" : ""} connected · code ${roomCode}` : `Waiting for a phone · code ${roomCode}`, phonesHere ? "ok" : "wait");
   }
-  function startWall() {
+  async function startWall() {
     drawPair();
-    if (!window.Peer) {
-      setStatus("pairStatus", "Couldn't load the pairing library. Check this computer's internet connection.", "bad");
+    if (!db) {
+      setStatus("pairStatus", "Couldn't load the connection library. Check this computer's internet connection.", "bad");
       setStatus("wallRemoteStatus", "Phone remote unavailable (no internet?)", "bad");
       return;
     }
+    // If another wall is already live on this code, pick a fresh one.
+    try {
+      const other = await db.ref(`rooms/${roomCode}/wall`).get();
+      if (other.val() === true && !roomRef) { roomCode = newCodeStr(); drawPair(); }
+    } catch (e) {}
     try { localStorage.setItem("font-tester-room", roomCode); } catch (e) {}
-    peer = new Peer(PREFIX + roomCode.toLowerCase(), peerOpts());
-    peer.on("open", () => { idRetries = 0; setStatus("pairStatus", "Ready — scan the code or open the link on a phone", "ok"); updatePair(); });
-    peer.on("connection", conn => {
-      conns.add(conn);
-      conn.on("open", () => {
-        conn.send({ type: "hello", state: S, vals: numericVals(), installed });
-        updatePair();
-      });
-      conn.on("data", d => {
-        if (!d || d.type !== "state") return;
-        applyState(d.state, d.vals);
-        sendNow(conn); // keep any other connected phones in step
-      });
-      const drop = () => { conns.delete(conn); updatePair(); };
-      conn.on("close", drop); conn.on("error", drop);
+    roomRef = db.ref(`rooms/${roomCode}`);
+    const wallRef = roomRef.child("wall");
+    wallRef.onDisconnect().remove();
+    wallRef.set(true).catch(() => {});
+    db.ref(".info/connected").on("value", s => { if (s.val() && roomRef) { wallRef.onDisconnect().remove(); wallRef.set(true).catch(() => {}); } });
+    lastInstalledStr = JSON.stringify(installed);
+    roomRef.child("installed").set(lastInstalledStr).catch(() => {});
+    readyToSend = true;
+    sendNow(); // the wall's current settings are the starting point for any phone that joins
+    roomRef.on("value", snap => {
+      const v = snap.val() || {};
+      phonesHere = v.phones ? Object.keys(v.phones).length : 0;
+      handleRoom(v);
+      updatePair();
     });
-    peer.on("disconnected", () => { setStatus("pairStatus", "Reconnecting to the pairing service…", "wait"); setTimeout(() => { if (peer && !peer.destroyed) peer.reconnect(); }, 2000); });
-    peer.on("error", e => {
-      if (e.type === "unavailable-id") {
-        // Usually the same code from a page that just reloaded; give the service a moment to release it.
-        if (idRetries++ < 4) { peer.destroy(); setTimeout(startWall, 3000); setStatus("pairStatus", "Reclaiming code…", "wait"); return; }
-        roomCode = newCodeStr(); idRetries = 0; peer.destroy(); startWall(); return;
-      }
-      if (["network", "server-error", "socket-error", "socket-closed"].includes(e.type)) {
-        setStatus("pairStatus", "Can't reach the pairing service. Retrying…", "bad");
-        peer.destroy(); setTimeout(startWall, 5000);
-      }
-    });
+  }
+  function leaveWall() {
+    if (!roomRef) return;
+    roomRef.off();
+    roomRef.child("wall").onDisconnect().cancel();
+    roomRef.child("wall").remove().catch(() => {});
+    roomRef = null; readyToSend = false; phonesHere = 0;
   }
 
   // ----- phone side -----
-  let wallConn = null, joinCode = (params.get("remote") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4), retryTimer = null;
+  let joinCode = (params.get("remote") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4), sawRoom = false;
+  function updateRemoteStatus() {
+    if (!REMOTE) return;
+    if (!db) { setStatus("remoteStatus", "Couldn't load the connection library. Check your connection and reload.", "bad"); return; }
+    if (!roomRef) { setStatus("remoteStatus", "Enter the four-character code shown on the wall", "wait"); return; }
+    if (!online) { setStatus("remoteStatus", "Offline. Waiting for a connection…", "bad"); return; }
+    if (!sawRoom) { setStatus("remoteStatus", `Connecting to wall ${joinCode}…`, "wait"); return; }
+    setStatus("remoteStatus", wallHere ? `Connected to wall ${joinCode}` : `Wall ${joinCode} isn't on right now. Open the tester on the wall, or check the code.`, wallHere ? "ok" : "bad");
+  }
   function connectRemote() {
-    clearTimeout(retryTimer);
-    if (!/^[A-Z0-9]{4}$/.test(joinCode)) { setStatus("remoteStatus", "Enter the four-character code shown on the wall", "wait"); return; }
+    if (roomRef) { roomRef.off(); roomRef.child("phones/" + clientId).remove().catch(() => {}); roomRef = null; }
+    readyToSend = false; sawRoom = false; wallHere = false; lastStateStr = "";
+    if (!db || !/^[A-Z0-9]{4}$/.test(joinCode)) { updateRemoteStatus(); return; }
     $("joinCode").value = joinCode;
-    if (!window.Peer) { setStatus("remoteStatus", "Couldn't load the pairing library. Check your connection and reload.", "bad"); return; }
     history.replaceState(null, "", `${location.pathname}?remote=${joinCode}${passThrough()}`);
-    setStatus("remoteStatus", `Connecting to wall ${joinCode}…`, "wait");
-    const go = () => {
-      if (wallConn) { try { wallConn.close(); } catch (e) {} conns.delete(wallConn); }
-      wallConn = peer.connect(PREFIX + joinCode.toLowerCase(), { reliable: true });
-      conns.add(wallConn);
-      const c = wallConn;
-      c.on("open", () => setStatus("remoteStatus", `Connected to wall ${joinCode}`, "ok"));
-      c.on("data", d => {
-        if (!d) return;
-        if (d.type === "hello") {
-          gotHello = true;
-          if (d.installed) Object.assign(installed, d.installed);
-          buildVars(); fontStatus();
-          applyState(d.state, d.vals);
-        } else if (d.type === "state") applyState(d.state, d.vals);
-      });
-      const lost = () => {
-        conns.delete(c);
-        if (c !== wallConn) return;
-        setStatus("remoteStatus", `Lost the wall. Retrying…`, "bad");
-        retryTimer = setTimeout(go, 3000);
-      };
-      c.on("close", lost); c.on("error", lost);
-    };
-    if (peer && peer.open) { go(); return; }
-    if (peer) peer.destroy();
-    peer = new Peer(undefined, peerOpts());
-    peer.on("open", go);
-    peer.on("disconnected", () => setTimeout(() => { if (peer && !peer.destroyed) peer.reconnect(); }, 2000));
-    peer.on("error", e => {
-      if (e.type === "peer-unavailable") { setStatus("remoteStatus", `No wall is showing code ${joinCode} right now. Check the code; retrying…`, "bad"); retryTimer = setTimeout(go, 4000); return; }
-      if (["network", "server-error", "socket-error", "socket-closed"].includes(e.type)) {
-        setStatus("remoteStatus", "Can't reach the pairing service. Retrying…", "bad");
-        retryTimer = setTimeout(() => { peer.destroy(); peer = null; connectRemote(); }, 5000);
+    roomRef = db.ref(`rooms/${joinCode}`);
+    const me = roomRef.child("phones/" + clientId);
+    me.onDisconnect().remove(); me.set(true).catch(() => {});
+    db.ref(".info/connected").on("value", s => { if (s.val() && roomRef) { me.onDisconnect().remove(); me.set(true).catch(() => {}); } });
+    updateRemoteStatus();
+    roomRef.on("value", snap => {
+      const v = snap.val() || {};
+      sawRoom = true;
+      wallHere = v.wall === true;
+      if (v.installed && v.installed !== lastInstalledStr) {
+        lastInstalledStr = v.installed;
+        try {
+          Object.assign(installed, JSON.parse(v.installed)); gotHello = true; buildVars(); fontStatus();
+          applyingRemote = true; try { update(); } finally { applyingRemote = false; }
+        } catch (e) {}
       }
-    });
+      handleRoom(v);
+      readyToSend = true; // only send after adopting the wall's settings, so a phone never overwrites them on join
+      updateRemoteStatus();
+    }, () => { setStatus("remoteStatus", "The connection was refused. Check the code.", "bad"); });
   }
 
   // ---------- Boot ----------
@@ -1024,14 +1023,14 @@
   if (!REMOTE) document.body.classList.add("panel-hidden"); // the wall starts clean; H or the pairing card opens the panel
   update();
   if (REMOTE) {
-    $("joinBtn").addEventListener("click", () => { joinCode = $("joinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4); if (peer) { peer.destroy(); peer = null; } connectRemote(); });
+    $("joinBtn").addEventListener("click", () => { joinCode = $("joinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4); connectRemote(); });
     $("joinCode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn").click(); });
     connectRemote();
   } else {
     $("pairPanel").addEventListener("click", () => togglePanel());
     $("pairHide").addEventListener("click", () => { pairDismissed = true; updatePair(); });
     $("showPair").addEventListener("click", () => { pairDismissed = false; document.body.classList.add("panel-hidden"); layoutStage(); updatePair(); });
-    $("newCode").addEventListener("click", () => { roomCode = newCodeStr(); conns.forEach(c => c.close()); conns.clear(); if (peer) peer.destroy(); startWall(); updatePair(); });
+    $("newCode").addEventListener("click", () => { leaveWall(); roomCode = newCodeStr(); startWall(); });
     updatePair();
     startWall();
   }
