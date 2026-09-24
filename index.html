@@ -308,6 +308,8 @@
       <button class="btn primary" id="joinBtn" type="button">Connect</button>
     </div>
     <p class="hint">Enter the four-character code shown on the wall, or scan its QR code. Every change here shows up on the wall right away.</p>
+    <label class="toggle"><input type="checkbox" id="rWallPanel"> Control panel on the wall</label>
+    <label class="toggle"><input type="checkbox" id="rWallCode"> Phone code on the wall (when no phone is connected)</label>
   </div>
   <div class="keys">
     <kbd>H</kbd> panel &nbsp; <kbd>+</kbd><kbd>−</kbd> size &nbsp; <kbd>[</kbd><kbd>]</kbd> leading &nbsp; <kbd>,</kbd><kbd>.</kbd> tracking<br>
@@ -509,7 +511,7 @@
     measure: 50, gap: 48, blockPad: 36, wallPad: 40, wallBg: "#000000",
     labels: true, labelSize: 18,
     wallW: 12289, wallH: 1080, wallFt: 7.5,
-    view: "fit", seams: false, seamPos: "4096, 8193", corners: true, safeTop: 100, side: "leftwall", panelH: "reach",
+    view: "fit", seams: false, seamPos: "4096, 8193", corners: true, safeTop: 100, side: "leftwall", panelH: "reach", wallPanel: false, wallCode: true,
   };
 
   const KEY = "font-tester-v5";
@@ -651,6 +653,12 @@
     $("viewFit").setAttribute("aria-pressed", S.view === "fit"); $("viewActual").setAttribute("aria-pressed", S.view !== "fit");
     document.querySelectorAll("[data-side]").forEach(b => b.setAttribute("aria-pressed", b.dataset.side === S.side));
     document.querySelectorAll("[data-ph]").forEach(b => b.setAttribute("aria-pressed", b.dataset.ph === S.panelH));
+    if (REMOTE) { $("rWallPanel").checked = !!S.wallPanel; $("rWallCode").checked = !!S.wallCode; }
+    else {
+      document.body.classList.toggle("panel-hidden", !S.wallPanel);
+      pairDismissed = !S.wallCode;
+      if (typeof updatePair === "function") updatePair();
+    }
   }
 
   // ---------- Stage sizing ----------
@@ -811,7 +819,7 @@
   document.querySelectorAll("[data-side]").forEach(b => b.addEventListener("click", () => { S.side = b.dataset.side; update(); }));
   document.querySelectorAll("[data-ph]").forEach(b => b.addEventListener("click", () => { S.panelH = b.dataset.ph; update(); }));
 
-  const togglePanel = () => { document.body.classList.toggle("panel-hidden"); layoutStage(); updatePair(); };
+  const togglePanel = () => { S.wallPanel = !S.wallPanel; update(); };
   $("hideBtn").addEventListener("click", togglePanel);
   $("reopen").addEventListener("click", togglePanel);
   const fs = () => {
@@ -842,7 +850,7 @@
     if (e.target.matches("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === "h") togglePanel();
-    else if (k === "r" && !REMOTE) { pairDismissed = !pairDismissed; updatePair(); }
+    else if (k === "r" && !REMOTE) { S.wallCode = !S.wallCode; update(); }
     else if (k === "l") { S.labels = !S.labels; update(); }
     else if (k === "g") { S.seams = !S.seams; update(); }
     else if (k === "v") { S.view = S.view === "fit" ? "actual" : "fit"; update(); }
@@ -1020,16 +1028,17 @@
   if (!REMOTE) detectInstalled();
   buildVars();
   fontStatus();
-  if (!REMOTE) document.body.classList.add("panel-hidden"); // the wall starts clean; H or the pairing card opens the panel
   update();
   if (REMOTE) {
+    $("rWallPanel").addEventListener("change", e => { S.wallPanel = e.target.checked; update(); });
+    $("rWallCode").addEventListener("change", e => { S.wallCode = e.target.checked; update(); });
     $("joinBtn").addEventListener("click", () => { joinCode = $("joinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4); connectRemote(); });
     $("joinCode").addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn").click(); });
     connectRemote();
   } else {
     $("pairPanel").addEventListener("click", () => togglePanel());
-    $("pairHide").addEventListener("click", () => { pairDismissed = true; updatePair(); });
-    $("showPair").addEventListener("click", () => { pairDismissed = false; document.body.classList.add("panel-hidden"); layoutStage(); updatePair(); });
+    $("pairHide").addEventListener("click", () => { S.wallCode = false; update(); });
+    $("showPair").addEventListener("click", () => { S.wallCode = true; S.wallPanel = false; update(); });
     $("newCode").addEventListener("click", () => { leaveWall(); roomCode = newCodeStr(); startWall(); });
     updatePair();
     startWall();
